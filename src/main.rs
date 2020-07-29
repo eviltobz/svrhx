@@ -13,32 +13,33 @@ use serde::{Serialize, Deserialize};
 #[derive(StructOpt)]
 #[derive(Debug)]
 #[structopt(about = "SerVeRHaXx")]
-enum Blah { 
+enum Command { 
+    // None,
     Add { 
         #[structopt(parse(from_os_str))]
         files: Vec<PathBuf>
     },
-    Dest { 
+    Init { 
         path: PathBuf
     },
-    Watch {}
+    Watch
 }
 
 #[derive(StructOpt)]
 #[derive(Debug)]
 struct Opt {
     #[structopt(subcommand)]
-    cmd: Option<Blah>
+    cmd: Option<Command>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Config {
+    project_root: Option<PathBuf>,
     files: Vec<PathBuf>,
     destination: Option<PathBuf>
 }
-
 impl :: std::default::Default for Config {
-    fn default() -> Self { Self { files: Vec::new() , destination: None } }
+    fn default() -> Self { Self { files: Vec::new() , destination: None, project_root: None } }
 }
 
 fn main() {
@@ -49,9 +50,18 @@ fn main() {
     let config = get_config();
     println!("Loaded Config into main: {:?}", config);
     display_config(&config);
-    save_config(&config);
-    
 
+    match opt.cmd {
+        Some(Command::Add{files}) => println!("{} {:?}", "Adding".green(), files),
+        Some(Command::Init{path}) => println!("{} {} ", "Initialise and point to ".green(), path.to_string_lossy().cyan()),
+        Some(Command::Watch) => println!("{} ", "Watching for file changes".green()),
+
+        None => println!("{}", "No command supplied".purple())
+    }
+
+
+
+    save_config(&config);
 }
 
 // Confy has its own ideas about where stuff should be stored, using directories to build
@@ -82,10 +92,23 @@ fn save_config(cfg: &Config) {
 
 fn display_config(cfg: &Config) {
     println!("Current Config:");
+    if let Some(root) = &cfg.project_root {
+        println!("  Project Root Location: {}", root.to_string_lossy().yellow());
+    } else {
+        println!("  Project Root Location: {}", "Not Configured".red());
+    }
     if let Some(dest) = &cfg.destination {
         println!("  Server Destination: {}", dest.to_string_lossy().yellow());
     } else {
         println!("  Server Destination: {}", "Not Configured".red());
+    }
+    if cfg.files.len() == 0 {
+        println!("  Tracked Files: {}", "Not Configured".red());
+    } else {
+        println!("  Tracked Files:");
+        for file in cfg.files.iter(){
+            println!("    {}", file.to_string_lossy().yellow());
+        }
     }
 
 }
