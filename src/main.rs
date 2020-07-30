@@ -1,5 +1,6 @@
 //use directories::{ProjectDirs};
 //use confy::*;
+use std::iter::Extend;
 use colored::*;
 use structopt::StructOpt;
 use std::path::PathBuf;
@@ -7,20 +8,26 @@ use serde::{Serialize, Deserialize};
 
 #[derive(StructOpt)]
 #[derive(Debug)]
-#[structopt(about = "SerVeRHaXx")]
 enum Command { 
+    #[structopt(about = "Add to the list of tracked files to copy")]
     Add { 
-        #[structopt(parse(from_os_str))]
+        #[structopt(parse(from_os_str), about = "Files to track")]
         files: Vec<PathBuf>
     },
+    #[structopt(about = "Initialise a session based on the current directory")]
     Init { 
+        #[structopt(about = "Remote location to copy files to")]
         path: PathBuf
     },
+    #[structopt(about = "Watch for changing files and copy them")]
     Watch
 }
 
 #[derive(StructOpt)]
 #[derive(Debug)]
+/// SerVeRHaXx
+/// 
+/// Automatically copies files to a remote location when they change
 struct Opt {
     #[structopt(subcommand)]
     cmd: Option<Command>
@@ -39,18 +46,26 @@ impl :: std::default::Default for Config {
 fn main() {
     let _ = control::set_virtual_terminal(true);
     let opt = Opt::from_args();
-    println!("command line args: {:?}", opt);
+    // println!("command line args: {:?}", opt);
     let mut config = get_config();
     // println!("Loaded Config into main: {:?}", config);
-    display_config(&config);
+    // display_config(&config);
 
     match opt.cmd {
-        Some(Command::Add{files}) => println!("{} {:?}", "Adding".green(), files),
+        Some(Command::Add{files}) => add(&mut config, files),
         Some(Command::Init{path}) => init(&mut config, path),
         Some(Command::Watch) => println!("{} ", "Watching for file changes".green()),
 
-        None => println!("{}", "No command supplied".purple())
+        None => display_config(&config) // println!("{}", "No command supplied".purple())
     }
+}
+
+fn add(config: &mut Config, files: Vec<PathBuf>) {
+    // Error if adding when in a different folder to the project root!
+    println!("{} {:?}", "Adding".green(), files);
+    config.files.extend(files);
+
+    save_config(&config);
 }
 
 fn init(config: &mut Config, dest: PathBuf) {
@@ -65,6 +80,7 @@ fn init(config: &mut Config, dest: PathBuf) {
 
     config.destination = Some(dest);
     config.project_root = Some(current);
+    config.files = Vec::new();
 
     save_config(&config);
 }
@@ -93,6 +109,9 @@ fn get_config() -> Config {
 
 fn save_config(cfg: &Config) {
     let _ = confy::store(CONFIG_FILE_NAME, &cfg);
+
+    println!("{}", "Updated config!".purple());
+    display_config(&cfg);
 }
 
 fn display_config(cfg: &Config) {
@@ -117,3 +136,5 @@ fn display_config(cfg: &Config) {
     }
 
 }
+
+
