@@ -1,20 +1,14 @@
-use directories::{ProjectDirs};
-// This works with ConEmu & the VS Code build output.
-// It DOESN'T work with consolez, default powershell, or the VS Code built in terminal
-// So methinks I'll need to do a windows specific version, with changing the terminal fg colour around.
+//use directories::{ProjectDirs};
+//use confy::*;
 use colored::*;
 use structopt::StructOpt;
 use std::path::PathBuf;
-use std::path::Path;
-//use confy::*;
 use serde::{Serialize, Deserialize};
-//use serde_derive::{Serialize, Deserialize};
 
 #[derive(StructOpt)]
 #[derive(Debug)]
 #[structopt(about = "SerVeRHaXx")]
 enum Command { 
-    // None,
     Add { 
         #[structopt(parse(from_os_str))]
         files: Vec<PathBuf>
@@ -44,22 +38,33 @@ impl :: std::default::Default for Config {
 
 fn main() {
     let _ = control::set_virtual_terminal(true);
-    println!("{}", "Meh".green());
     let opt = Opt::from_args();
-    println!("opt: {:?}", opt);
-    let config = get_config();
-    println!("Loaded Config into main: {:?}", config);
+    println!("command line args: {:?}", opt);
+    let mut config = get_config();
+    // println!("Loaded Config into main: {:?}", config);
     display_config(&config);
 
     match opt.cmd {
         Some(Command::Add{files}) => println!("{} {:?}", "Adding".green(), files),
-        Some(Command::Init{path}) => println!("{} {} ", "Initialise and point to ".green(), path.to_string_lossy().cyan()),
+        Some(Command::Init{path}) => init(&mut config, path),
         Some(Command::Watch) => println!("{} ", "Watching for file changes".green()),
 
         None => println!("{}", "No command supplied".purple())
     }
+}
 
+fn init(config: &mut Config, dest: PathBuf) {
+    // Using unwrap is bad. At some point I should change this to be more
+    // idiomatic rust code...
+    let current = std::env::current_dir().unwrap();
+    println!("{} {} {} {}", 
+        "Initialise in".green(), 
+        current.to_string_lossy().cyan(), 
+        "and point to".green(), 
+        dest.to_string_lossy().cyan());
 
+    config.destination = Some(dest);
+    config.project_root = Some(current);
 
     save_config(&config);
 }
@@ -67,6 +72,7 @@ fn main() {
 // Confy has its own ideas about where stuff should be stored, using directories to build
 // the path with company name & whatnot makes it go pop. So we'll just use its defaults 
 // if it seems to be sufficient
+/*
 fn get_config_path() -> Option<PathBuf> {
     if let Some(proj_dirs) = ProjectDirs::from("com", "vvec", "") {
         println!("  {:?}", proj_dirs);
@@ -75,19 +81,18 @@ fn get_config_path() -> Option<PathBuf> {
     }
     return None;
 }
+*/
 
 
 const CONFIG_FILE_NAME: &str = "svrhx";
 fn get_config() -> Config {
         let loaded: std::result::Result<Config, confy::ConfyError> = confy::load(CONFIG_FILE_NAME);
         let cfg = loaded.ok();
-        // println!("Loaded Config: {:?}", cfg);
-        // confy::store(CONFIG_FILE_NAME, &cfg);
         return cfg.unwrap();
 }
 
 fn save_config(cfg: &Config) {
-    confy::store(CONFIG_FILE_NAME, &cfg);
+    let _ = confy::store(CONFIG_FILE_NAME, &cfg);
 }
 
 fn display_config(cfg: &Config) {
