@@ -5,6 +5,9 @@ use colored::*;
 use structopt::StructOpt;
 use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
+use notify::*; //{Watcher, watcher, RecursiveMode};
+use std::sync::mpsc::channel;
+use std::time::Duration;
 
 #[derive(StructOpt)]
 #[derive(Debug)]
@@ -42,6 +45,11 @@ struct Config {
 impl :: std::default::Default for Config {
     fn default() -> Self { Self { files: Vec::new() , destination: None, project_root: None } }
 }
+struct ValidatedConfig {
+    project_root: PathBuf,
+    files: Vec<PathBuf>,
+    destination: PathBuf
+}
 
 fn main() {
     let _ = control::set_virtual_terminal(true);
@@ -54,9 +62,82 @@ fn main() {
     match opt.cmd {
         Some(Command::Add{files}) => add(&mut config, files),
         Some(Command::Init{path}) => init(&mut config, path),
-        Some(Command::Watch) => println!("{} ", "Watching for file changes".green()),
+        Some(Command::Watch) => try_watch(config),
 
         None => display_config(&config) // println!("{}", "No command supplied".purple())
+    }
+}
+
+fn validate_config(config: Config) -> Option<ValidatedConfig>{
+    let current = std::env::current_dir().unwrap();
+    let expected = config.project_root.unwrap();
+    if expected != current {
+        println!("{}", "Error: SVRHX is running in the wrong location.".red());
+        println!("{} {} {} {}", "Expected:".red(), expected.to_string_lossy().yellow(), "Actual:".red(), &current.to_string_lossy().yellow());
+        println!("to be honest, i could just cd there myself...");
+        return None;
+    }
+
+    let destination = config.destination.unwrap();
+
+    if config.files.len() == 0 {
+        println!("{}", "Error: No files configured to track.".red());
+        return None;
+    }
+
+    return Some(ValidatedConfig{project_root: current, destination: destination, files: config.files});
+
+}
+
+fn try_watch(raw_config: Config) {
+    let config = validate_config(raw_config);
+    
+    match config {
+        Some(valid) => watch(valid),
+        None => {}
+    }
+}
+
+fn watch(config: ValidatedConfig) {
+    println!("{} {} {}", "Watching".green(), config.project_root.to_string_lossy().yellow(), "for changes to:".green());
+    display_tracked_files(&config.files);
+
+    let (sender, receiver) = channel();
+    let mut watcher = watcher(sender, Duration::from_secs(2)).unwrap();
+    for file in config.files {
+        watcher.watch(file, RecursiveMode::NonRecursive).unwrap();
+// It is possible to create several watchers with different configurations or implementations 
+// that all call the same event function. This can accommodate advanced behaviour or work around limits.
+
+//       fn event_fn(res: Result<notify::Event>) {
+//           match res {
+//              Ok(event) => println!("event: {:?}", event),
+//              Err(e) => println!("watch error: {:?}", e),
+//           }
+//       }
+
+//       let mut watcher1: RecommendedWatcher = Watcher::new_immediate(event_fn)?;
+//       let mut watcher2: RecommendedWatcher = Watcher::new_immediate(event_fn)?;
+    }
+    // watcher.watch(&config.files[0], RecursiveMode::NonRecursive).unwrap();
+    loop {
+        print!(".");
+        match receiver.recv() {
+            Ok(event) => handle(event, &config.destination),
+            Err(e) => println!("Err:{:?}", e),
+        }
+    }
+}
+
+fn handle(event: DebouncedEvent, dest: &PathBuf) {
+    println!("Event:{:?}", event);
+    //let dest2 = dest.join()
+    match event {
+        DebouncedEvent::Write(path) => {
+            println!("{} {}", "I need to copy the file:".green(), path.to_string_lossy().yellow());
+            println!("{} {}", "To:".green(), path.to_string_lossy().yellow());
+        },
+        _ => println!("{} {:?}", "Not currently handling event type:".red(), event)
     }
 }
 
@@ -130,11 +211,14 @@ fn display_config(cfg: &Config) {
         println!("  Tracked Files: {}", "Not Configured".red());
     } else {
         println!("  Tracked Files:");
-        for file in cfg.files.iter(){
-            println!("    {}", file.to_string_lossy().yellow());
-        }
+        display_tracked_files(&cfg.files);
     }
+}
 
+fn display_tracked_files(files: &Vec<PathBuf>) {
+    for file in files.iter(){
+        println!("    {}", file.to_string_lossy().yellow());
+    }
 }
 
 
