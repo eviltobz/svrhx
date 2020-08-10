@@ -4,10 +4,16 @@ use std::iter::Extend;
 use colored::*;
 use structopt::StructOpt;
 use std::path::PathBuf;
+use std::path::Path;
 use serde::{Serialize, Deserialize};
-use notify::*; //{Watcher, watcher, RecursiveMode};
-use std::sync::mpsc::channel;
-use std::time::Duration;
+// use notify::*; //{Watcher, watcher, RecursiveMode};
+// use std::sync::mpsc::channel;
+// use std::time::Duration;
+// use hotwatch::*;
+use hotwatch::{
+    blocking::{Flow, Hotwatch},
+    Event,
+};
 
 #[derive(StructOpt)]
 #[derive(Debug)]
@@ -93,53 +99,55 @@ fn try_watch(raw_config: Config) {
     let config = validate_config(raw_config);
     
     match config {
-        Some(valid) => watch(valid),
+        Some(valid) => watch(valid).unwrap(),
         None => {}
     }
 }
 
-fn watch(config: ValidatedConfig) {
+fn watch(config: ValidatedConfig) -> Result<(), hotwatch::Error> {
     println!("{} {} {}", "Watching".green(), config.project_root.to_string_lossy().yellow(), "for changes to:".green());
     display_tracked_files(&config.files);
 
-    let (sender, receiver) = channel();
-    let mut watcher = watcher(sender, Duration::from_secs(2)).unwrap();
+    let mut watcher = Hotwatch::new()?; //.expect("hotwatch failed to initialise");
+
+
+    // let (sender, receiver) = channel();
+    // let mut watcher = watcher(sender, Duration::from_secs(2)).unwrap();
     for file in config.files {
-        watcher.watch(file, RecursiveMode::NonRecursive).unwrap();
-// It is possible to create several watchers with different configurations or implementations 
-// that all call the same event function. This can accommodate advanced behaviour or work around limits.
-
-//       fn event_fn(res: Result<notify::Event>) {
-//           match res {
-//              Ok(event) => println!("event: {:?}", event),
-//              Err(e) => println!("watch error: {:?}", e),
-//           }
-//       }
-
-//       let mut watcher1: RecommendedWatcher = Watcher::new_immediate(event_fn)?;
-//       let mut watcher2: RecommendedWatcher = Watcher::new_immediate(event_fn)?;
+        let x = file.clone();
+        watcher.watch(file, move |event: Event| {
+            match event {
+                Event::Write(path) => println!("Write event for: {}, registered at {}", path.to_string_lossy(), x.to_string_lossy()),
+                _ => println!("Unhandled event: {:?}", event)
+            }
+            Flow::Continue
+        }).expect("failed to watch file");
     }
     // watcher.watch(&config.files[0], RecursiveMode::NonRecursive).unwrap();
-    loop {
-        print!(".");
-        match receiver.recv() {
-            Ok(event) => handle(event, &config.destination),
-            Err(e) => println!("Err:{:?}", e),
-        }
-    }
+    // loop {
+    //     print!(".");
+    //     match receiver.recv() {
+    //         Ok(event) => handle(event, &config.destination),
+    //         Err(e) => println!("Err:{:?}", e),
+    //     }
+    // }
+
+    watcher.run();
+    println!("Exiting...");
+    Ok(())
 }
 
-fn handle(event: DebouncedEvent, dest: &PathBuf) {
-    println!("Event:{:?}", event);
-    //let dest2 = dest.join()
-    match event {
-        DebouncedEvent::Write(path) => {
-            println!("{} {}", "I need to copy the file:".green(), path.to_string_lossy().yellow());
-            println!("{} {}", "To:".green(), path.to_string_lossy().yellow());
-        },
-        _ => println!("{} {:?}", "Not currently handling event type:".red(), event)
-    }
-}
+// fn handle(event: DebouncedEvent, dest: &PathBuf) {
+//     println!("Event:{:?}", event);
+//     //let dest2 = dest.join()
+//     match event {
+//         DebouncedEvent::Write(path) => {
+//             println!("{} {}", "I need to copy the file:".green(), path.to_string_lossy().yellow());
+//             println!("{} {}", "To:".green(), path.to_string_lossy().yellow());
+//         },
+//         _ => println!("{} {:?}", "Not currently handling event type:".red(), event)
+//     }
+// }
 
 fn add(config: &mut Config, files: Vec<PathBuf>) {
     // Error if adding when in a different folder to the project root!

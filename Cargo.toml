@@ -10,6 +10,7 @@ edition = "2018"
 colored = "2"
 confy = "0.4.0"
 directories = "3.0"
-notify = "4.0.15"
+# notify = "4.0.15"
+hotwatch = "0.4.3"
 serde = { version = "1.0.114", features = ["derive"] }
 structopt = "0.3.15"

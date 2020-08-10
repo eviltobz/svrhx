@@ -228,6 +228,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hotwatch"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba0add391e9cd7d19c29024617a44df79c867ab003bce7f3224c1636595ec740"
+dependencies = [
+ "log",
+ "notify",
+]
+
+[[package]]
 name = "inotify"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -510,7 +520,7 @@ dependencies = [
  "colored",
  "confy",
  "directories 3.0.1",
- "notify",
+ "hotwatch",
  "serde",
  "structopt",
 ]
