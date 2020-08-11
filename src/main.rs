@@ -115,9 +115,18 @@ fn watch(config: ValidatedConfig) -> Result<(), hotwatch::Error> {
     // let mut watcher = watcher(sender, Duration::from_secs(2)).unwrap();
     for file in config.files {
         let x = file.clone();
+        let mut dest_path = config.destination.clone();
+        dest_path.push(&x);
+
         watcher.watch(file, move |event: Event| {
+
             match event {
-                Event::Write(path) => println!("Write event for: {}, registered at {}", path.to_string_lossy(), x.to_string_lossy()),
+                Event::Write(path) => {
+                    println!("Write event for: {}, registered at {}", path.to_string_lossy(), x.to_string_lossy());
+                    println!("So I wanna copy from {} to {}", path.to_string_lossy(), dest_path.to_string_lossy());
+                    std::fs::copy(path, &dest_path).expect("Could not copy");
+                    println!("Copied :{} at {}", x.to_string_lossy().yellow(), "(get a datetime stamp)");
+                },
                 _ => println!("Unhandled event: {:?}", event)
             }
             Flow::Continue
