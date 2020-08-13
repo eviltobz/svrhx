@@ -116,6 +116,7 @@ fn watch(config: ValidatedConfig) -> Result<(), hotwatch::Error> {
     for file in config.files {
         let x = file.clone();
         let mut dest_path = config.destination.clone();
+        let dest_root = config.destination.clone();
         dest_path.push(&x);
 
         watcher.watch(file, move |event: Event| {
@@ -124,8 +125,37 @@ fn watch(config: ValidatedConfig) -> Result<(), hotwatch::Error> {
                 Event::Write(path) => {
                     println!("Write event for: {}, registered at {}", path.to_string_lossy(), x.to_string_lossy());
                     println!("So I wanna copy from {} to {}", path.to_string_lossy(), dest_path.to_string_lossy());
-                    std::fs::copy(path, &dest_path).expect("Could not copy");
-                    println!("Copied :{} at {}", x.to_string_lossy().yellow(), "(get a datetime stamp)");
+                    // let bits = x.components();
+                    // for bit in bits {
+                    //     println!(" - {:?}", bit);
+                    // }
+                    // let os_bits = x.iter().collect::<Vec<std::ffi::OsStr>>();
+                    let os_bits = x.iter();
+                    let mut partial = dest_root.clone();
+
+                    for bit in os_bits {
+                        partial.push(bit);
+                        println!(" bit:{:?}, partial:{}", bit, partial.to_string_lossy());
+                    }
+
+                    // println!("Ancestors:");
+                    // for old_folk in x.ancestors() {
+                    //     println!(" old_folk:{:?}", old_folk);
+                    // }
+
+                    println!("Ancestors.Skip:");
+                    let to_check = x.ancestors().skip(1).collect::<Vec<_>>(); //.rev();
+                    println!("Got {} ancestor steps.", to_check.len());
+                    for old_folk in to_check {
+                        println!(" old_folk:{:?}", old_folk);
+                    }
+                    ensure_path(&dest_root, &x.ancestors().skip(1).next().unwrap());
+
+                    let copy_result = std::fs::copy(&path, &dest_path); //.expect("Could not copy");
+                    println!("Copy result for '{}' to '{}': {:?}", &path.to_string_lossy(), &dest_path.to_string_lossy(), copy_result);
+
+                    println!("(might have) Copied :{} at {}", x.to_string_lossy().yellow(), "(get a datetime stamp)");
+                    panic!("?");
                 },
                 _ => println!("Unhandled event: {:?}", event)
             }
@@ -144,6 +174,31 @@ fn watch(config: ValidatedConfig) -> Result<(), hotwatch::Error> {
     watcher.run();
     println!("Exiting...");
     Ok(())
+}
+
+fn ensure_path(root: &PathBuf, extra: &Path) -> bool {
+    let full = root.clone().join(extra);
+    println!("ensuring {}", full.to_string_lossy());
+    if full.exists() {
+        println!("{}", "w00t.".green());
+        return true;
+    }
+    std::fs::create_dir_all(full).expect("could not create path");
+    true
+    /*
+    let next = extra.ancestors().skip(1).next();
+    match next {
+        Some(path) => {
+            if ensure_path(&root, &path) {
+                // mkdir
+                true
+            } else {
+                false
+            }
+        },
+        _ => false
+    }
+    */
 }
 
 // fn handle(event: DebouncedEvent, dest: &PathBuf) {
